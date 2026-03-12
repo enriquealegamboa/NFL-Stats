@@ -1,0 +1,33 @@
+espn_team_id,name,location,display_name,abbreviation,primary_color,logo,conference,division
+22,Cardinals,Arizona,Arizona Cardinals,ARI,a40227,https://a.espncdn.com/i/teamlogos/nfl/500/ari.png,NFC,WEST
+1,Falcons,Atlanta,Atlanta Falcons,ATL,a71930,https://a.espncdn.com/i/teamlogos/nfl/500/atl.png,NFC,SOUTH
+33,Ravens,Baltimore,Baltimore Ravens,BAL,29126f,https://a.espncdn.com/i/teamlogos/nfl/500/bal.png,AFC,NORTH
+2,Bills,Buffalo,Buffalo Bills,BUF,00338d,https://a.espncdn.com/i/teamlogos/nfl/500/buf.png,AFC,EAST
+29,Panthers,Carolina,Carolina Panthers,CAR,0085ca,https://a.espncdn.com/i/teamlogos/nfl/500/car.png,NFC,SOUTH
+3,Bears,Chicago,Chicago Bears,CHI,0b1c3a,https://a.espncdn.com/i/teamlogos/nfl/500/chi.png,NFC,NORTH
+4,Bengals,Cincinnati,Cincinnati Bengals,CIN,fb4f14,https://a.espncdn.com/i/teamlogos/nfl/500/cin.png,AFC,NORTH
+5,Browns,Cleveland,Cleveland Browns,CLE,472a08,https://a.espncdn.com/i/teamlogos/nfl/500/cle.png,AFC,NORTH
+6,Cowboys,Dallas,Dallas Cowboys,DAL,002a5c,https://a.espncdn.com/i/teamlogos/nfl/500/dal.png,NFC,EAST
+7,Broncos,Denver,Denver Broncos,DEN,0a2343,https://a.espncdn.com/i/teamlogos/nfl/500/den.png,AFC,WEST
+8,Lions,Detroit,Detroit Lions,DET,0076b6,https://a.espncdn.com/i/teamlogos/nfl/500/det.png,NFC,NORTH
+9,Packers,Green Bay,Green Bay Packers,GB,204e32,https://a.espncdn.com/i/teamlogos/nfl/500/gb.png,NFC,NORTH
+34,Texans,Houston,Houston Texans,HOU,00143f,https://a.espncdn.com/i/teamlogos/nfl/500/hou.png,AFC,SOUTH
+11,Colts,Indianapolis,Indianapolis Colts,IND,003b75,https://a.espncdn.com/i/teamlogos/nfl/500/ind.png,AFC,SOUTH
+30,Jaguars,Jacksonville,Jacksonville Jaguars,JAX,007487,https://a.espncdn.com/i/teamlogos/nfl/500/jax.png,AFC,SOUTH
+12,Chiefs,Kansas City,Kansas City Chiefs,KC,e31837,https://a.espncdn.com/i/teamlogos/nfl/500/kc.png,AFC,WEST
+13,Raiders,Las Vegas,Las Vegas Raiders,LV,000000,https://a.espncdn.com/i/teamlogos/nfl/500/lv.png,AFC,WEST
+24,Chargers,Los Angeles,Los Angeles Chargers,LAC,0080c6,https://a.espncdn.com/i/teamlogos/nfl/500/lac.png,AFC,WEST
+14,Rams,Los Angeles,Los Angeles Rams,LAR,003594,https://a.espncdn.com/i/teamlogos/nfl/500/lar.png,NFC,WEST
+15,Dolphins,Miami,Miami Dolphins,MIA,008e97,https://a.espncdn.com/i/teamlogos/nfl/500/mia.png,AFC,EAST
+16,Vikings,Minnesota,Minnesota Vikings,MIN,4f2683,https://a.espncdn.com/i/teamlogos/nfl/500/min.png,NFC,NORTH
+17,Patriots,New England,New England Patriots,NE,002a5c,https://a.espncdn.com/i/teamlogos/nfl/500/ne.png,AFC,EAST
+18,Saints,New Orleans,New Orleans Saints,NO,d3bc8d,https://a.espncdn.com/i/teamlogos/nfl/500/no.png,NFC,SOUTH
+19,Giants,New York,New York Giants,NYG,003c7f,https://a.espncdn.com/i/teamlogos/nfl/500/nyg.png,NFC,EAST
+20,Jets,New York,New York Jets,NYJ,115740,https://a.espncdn.com/i/teamlogos/nfl/500/nyj.png,AFC,EAST
+21,Eagles,Philadelphia,Philadelphia Eagles,PHI,06424d,https://a.espncdn.com/i/teamlogos/nfl/500/phi.png,NFC,EAST
+23,Steelers,Pittsburgh,Pittsburgh Steelers,PIT,000000,https://a.espncdn.com/i/teamlogos/nfl/500/pit.png,AFC,NORTH
+25,49ers,San Francisco,San Francisco 49ers,SF,aa0000,https://a.espncdn.com/i/teamlogos/nfl/500/sf.png,NFC,WEST
+26,Seahawks,Seattle,Seattle Seahawks,SEA,002a5c,https://a.espncdn.com/i/teamlogos/nfl/500/sea.png,NFC,WEST
+27,Buccaneers,Tampa Bay,Tampa Bay Buccaneers,TB,bd1c36,https://a.espncdn.com/i/teamlogos/nfl/500/tb.png,NFC,SOUTH
+10,Titans,Tennessee,Tennessee Titans,TEN,4b92db,https://a.espncdn.com/i/teamlogos/nfl/500/ten.png,AFC,SOUTH
+28,Commanders,Washington,Washington Commanders,WSH,5a1414,https://a.espncdn.com/i/teamlogos/nfl/500/wsh.png,NFC,EAST
