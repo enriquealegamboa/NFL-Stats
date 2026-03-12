@@ -30,23 +30,7 @@ The system stores structured NFL data including:
 
 ## Architecture
 
-```
-             ESPN NFL API
-                   │
-                   │
-           Python ETL Scripts
-        (requests + pandas)
-                   │
-                   ▼
-         Supabase PostgreSQL Database
-                   │
-                   │
-          ASP.NET Core REST API
-                   │
-                   ▼
-            API Consumers
-     (analytics tools, dashboards)
-```
+<img width="717" height="67" alt="Architecture" src="https://github.com/user-attachments/assets/2c430fe1-32c1-4b9c-b838-00169beb4128" />
 
 ---
 
