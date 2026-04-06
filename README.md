@@ -70,8 +70,11 @@ Core tables include:
 | players      | Player roster data            |
 | games        | NFL games by season and week  |
 | seasons      | NFL seasons                   |
-| player_stats | Player performance statistics |
-| team_stats   | Aggregated team statistics    |
+| season_player_stats | Player performance statistics |
+| season_team_stats   | Aggregated team statistics    |
+| game_team_stats   | team statistics for a single game    |
+| season_player_stats | Player performance statistics |
+| player_team_stats   |  player stats in game  |
 
 ---
 
@@ -104,10 +107,11 @@ Python scripts pull data from the ESPN API and load it into the Supabase Postgre
 Example workflow:
 
 ```
-1. Pull teams from ESPN API
-2. Pull roster for each team
-3. Transform data using pandas
-4. Insert into Supabase PostgreSQL tables
+1. Pull season stats for teams
+2. Pull game stats
+3. Pull player season stats 
+4. Transform data using pandas
+5. Insert into Supabase PostgreSQL tables
 ```
 
 Libraries used:
