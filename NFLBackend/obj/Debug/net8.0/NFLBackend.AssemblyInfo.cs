@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NFLBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+da62ce9a543140da459c8f047edb692a47a3328b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+805eaac200519ebac8fff0b2dffff5f307e642cf")]
 [assembly: System.Reflection.AssemblyProductAttribute("NFLBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NFLBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

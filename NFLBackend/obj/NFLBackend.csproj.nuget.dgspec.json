@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/mnt/c/Users/enriq/Documents/GitHub/NFL-Stats/NFLBackend/NFLBackend.csproj": {}
+    "/mnt/c/Users/enriq/Documents/Github/NFL-Stats/NFLBackend/NFLBackend.csproj": {}
   },
   "projects": {
-    "/mnt/c/Users/enriq/Documents/GitHub/NFL-Stats/NFLBackend/NFLBackend.csproj": {
+    "/mnt/c/Users/enriq/Documents/Github/NFL-Stats/NFLBackend/NFLBackend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/mnt/c/Users/enriq/Documents/GitHub/NFL-Stats/NFLBackend/NFLBackend.csproj",
+        "projectUniqueName": "/mnt/c/Users/enriq/Documents/Github/NFL-Stats/NFLBackend/NFLBackend.csproj",
         "projectName": "NFLBackend",
-        "projectPath": "/mnt/c/Users/enriq/Documents/GitHub/NFL-Stats/NFLBackend/NFLBackend.csproj",
+        "projectPath": "/mnt/c/Users/enriq/Documents/Github/NFL-Stats/NFLBackend/NFLBackend.csproj",
         "packagesPath": "/home/enrique/.nuget/packages/",
-        "outputPath": "/mnt/c/Users/enriq/Documents/GitHub/NFL-Stats/NFLBackend/obj/",
+        "outputPath": "/mnt/c/Users/enriq/Documents/Github/NFL-Stats/NFLBackend/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/home/enrique/.nuget/NuGet/NuGet.Config"
@@ -42,6 +42,10 @@
               "target": "Package",
               "version": "[8.0.24, )"
             },
+            "Supabase": {
+              "target": "Package",
+              "version": "[1.1.1, )"
+            },
             "Swashbuckle.AspNetCore": {
               "target": "Package",
               "version": "[6.6.2, )"
@@ -66,7 +70,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.124/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.126/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

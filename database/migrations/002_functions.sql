@@ -22,13 +22,12 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1
-        FROM "season_player_stats" pgs
+        FROM "game_player_stats" pgs
         WHERE pgs."game_id" = NEW."game_id"
           AND pgs."player_id" = NEW."player_id"
-          AND pgs."is_regular_season" = NEW."is_regular_season"
     ) THEN
-        RAISE EXCEPTION 'Player % did NOT play in "game" % (season type: %)',
-            NEW."player_id", NEW."game_id", NEW."is_regular_season";
+        RAISE EXCEPTION 'Player % did NOT play in "game" % ',
+            NEW."player_id", NEW."game_id";
     END IF;
 
     RETURN NEW;
