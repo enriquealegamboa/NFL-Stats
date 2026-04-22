@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using NFLBackend.Models.Dtos;
 using NFLBackend.Services.Interfaces;
 
 namespace NFLBackend.Controllers;
@@ -20,8 +21,15 @@ public class DailyGameController : ControllerBase
         var result = await _service.GetTodayAsync();
 
         if (result == null)
-            return NotFound("No game for today");
+            return NotFound();
 
+        return Ok(result);
+    }
+
+    [HttpPost("guess")]
+    public async Task<IActionResult> Guess([FromBody] GuessRequestDto request)
+    {
+        var result = await _service.CheckGuessAsync(request.TeamId, request.SeasonId);
         return Ok(result);
     }
 }

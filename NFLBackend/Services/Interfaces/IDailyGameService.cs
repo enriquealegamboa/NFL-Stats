@@ -1,8 +1,9 @@
-namespace NFLBackend.Services.Interfaces;
+using NFLBackend.Models.Dtos;
 
-using NFLBackend.Models.Domain;
+namespace NFLBackend.Services.Interfaces;
 
 public interface IDailyGameService
 {
-    Task<DailyGamePuzzle?> GetTodayAsync();
+    Task<DailyGameDto?> GetTodayAsync();
+    Task<GuessResponseDto> CheckGuessAsync(int teamId, int seasonId);
 }

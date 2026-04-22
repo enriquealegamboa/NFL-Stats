@@ -1,35 +1,29 @@
 using NFLBackend.Data;
 using NFLBackend.Repositories;
-using NFLBackend.Repositories.Interfaces;
 using NFLBackend.Services;
 using NFLBackend.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers + Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Configuration.AddEnvironmentVariables();
 
-// Supabase config
-var url = builder.Configuration["SUPABASE_URL"];
-var key = builder.Configuration["SUPABASE_SECRET_KEY"];
+// Supabase REST client
+builder.Services.AddSingleton<SupabaseRestClient>();
 
-// Dependency Injection
-builder.Services.AddSingleton(new SupabaseClientFactory(url, key));
+// Repositories
+builder.Services.AddScoped<GameStateRepository>();
 
-builder.Services.AddScoped<IDailyGameRepository, DailyGameRepository>();
+// Services
 builder.Services.AddScoped<IDailyGameService, DailyGameService>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
-app.UseAuthorization();
 app.MapControllers();
 
 app.Run();

@@ -1,21 +1,44 @@
-using NFLBackend.Models.Domain;
-using NFLBackend.Repositories.Interfaces;
+using NFLBackend.Models.Dtos;
+using NFLBackend.Repositories;
 using NFLBackend.Services.Interfaces;
 
 namespace NFLBackend.Services;
 
 public class DailyGameService : IDailyGameService
 {
-    private readonly IDailyGameRepository _repo;
+    private readonly GameStateRepository _repo;
 
-    public DailyGameService(IDailyGameRepository repo)
+    public DailyGameService(GameStateRepository repo)
     {
         _repo = repo;
     }
 
-    public async Task<DailyGamePuzzle?> GetTodayAsync()
+    public async Task<DailyGameDto?> GetTodayAsync()
     {
-        var today = DateTime.UtcNow.Date;
-        return await _repo.GetByDateAsync(today);
+        return await _repo.GetCurrentGameAsync();
+    }
+
+    public async Task<GuessResponseDto> CheckGuessAsync(int teamId, int seasonId)
+    {
+        var game = await _repo.GetCurrentGameAsync();
+
+        if (game == null)
+            throw new Exception("No active game");
+
+        var teamCorrect = teamId == game.TeamId;
+        var seasonCorrect = seasonId == game.SeasonId;
+        var correct = teamCorrect && seasonCorrect;
+
+        return new GuessResponseDto
+        {
+            Correct = correct,
+            TeamCorrect = teamCorrect,
+            SeasonCorrect = seasonCorrect,
+            SeasonDirection = seasonCorrect
+                ? "Correct"
+                : seasonId > game.SeasonId ? "Lower" : "Higher",
+            GameOver = correct,
+            RemainingGuesses = correct ? 0 : 1
+        };
     }
 }
