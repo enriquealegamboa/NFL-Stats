@@ -83,17 +83,8 @@ Core tables include:
 Example endpoints exposed by the backend:
 
 ```
-GET /teams
-GET /teams/{id}
-
-GET /players
-GET /players/{id}
-
-GET /games
-GET /games/{season}/{week}
-
-GET /stats/team/{teamId}
-GET /stats/player/{playerId}
+GET /api/DailyGame/today
+POST /api/DaiyGame/guess
 ```
 
 Swagger UI is included for easy API testing.
