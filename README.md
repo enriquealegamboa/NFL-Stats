@@ -1,158 +1,96 @@
-# NFL Data Backend API
+# NFL Stats
 
-A backend system that collects, stores, and serves NFL data through a REST API.
-This project demonstrates backend development, database design, and data engineering using real NFL data sourced from the ESPN API.
+A full-stack NFL data platform: ETL from the ESPN API into Supabase, a Node/Express REST API on Railway, and a Next.js web app on Vercel.
 
-The goal of the project is to build a **production-style backend service** that can power analytics, dashboards, or sports applications.
-
----
-
-## Project Overview
-
-This project builds a **complete NFL data backend** consisting of:
-
-* Data ingestion from the ESPN API
-* Relational database schema for NFL entities
-* Backend REST API built with ASP.NET Core
-* Cloud-hosted PostgreSQL database using Supabase
-* Python scripts for data collection and ETL
-
-The system stores structured NFL data including:
-
-* Teams
-* Players
-* Games
-* Seasons
-* Player statistics
-* Team statistics
+The goal is a **production-style stack** that can power analytics, dashboards, or sports applications using real NFL data.
 
 ---
 
 ## Architecture
 
-<img width="717" height="67" alt="Architecture" src="https://github.com/user-attachments/assets/2c430fe1-32c1-4b9c-b838-00169beb4128" />
-
----
-
-## Tech Stack
-
-### Backend
-
-* ASP.NET Core Web API
-* Swagger / OpenAPI
-
-### Database
-
-* Supabase (PostgreSQL)
-* Relational schema designed using EER modeling
-
-### Data Engineering
-
-* Python
-* requests
-* pandas
-
-### Data Source
-
-* ESPN NFL API
-
----
-
-## Database Design
-
-The database was designed using an **Enhanced Entity Relationship (EER) model** to represent real NFL relationships.
-
-Core tables include:
-
-| Table        | Description                   |
-| :------------ | :----------------------------- |
-| teams        | NFL team information          |
-| players      | Player roster data            |
-| games        | NFL games by season and week  |
-| seasons      | NFL seasons                   |
-| season_player_stats | Player performance statistics |
-| season_team_stats   | Aggregated team statistics    |
-| game_team_stats   | team statistics for a single game    |
-| season_player_stats | Player performance statistics |
-| player_team_stats   |  player stats in game  |
-
----
-
-## API Endpoints (Planned)
-
-Example endpoints exposed by the backend:
-
 ```
-GET /api/DailyGame/today
-POST /api/DaiyGame/guess
+ESPN API ──► data_pipeline (Python) ──► Supabase (Postgres)
+                                              ▲
+                                              │
+                          backend (Express/TS, Railway)
+                                              ▲
+                                              │
+                          frontend (Next.js, Vercel)
 ```
 
-Swagger UI is included for easy API testing.
+---
+
+## Repo layout
+
+| Folder | Purpose | Stack | Hosted on |
+| :--- | :--- | :--- | :--- |
+| [`frontend/`](frontend) | Web app | Next.js (App Router) + TypeScript | Vercel |
+| [`backend/`](backend) | REST API | Express + TypeScript | Railway |
+| [`data_pipeline/`](data_pipeline) | ETL: ESPN API → Supabase | Python (`requests`, `pandas`, `supabase`) | Run on demand |
+| [`database/`](database) | SQL migrations (schema, functions, triggers, indexes) | PostgreSQL | Supabase |
 
 ---
 
-## Data Collection
+## Database
 
-Python scripts pull data from the ESPN API and load it into the Supabase PostgreSQL database.
+Postgres on Supabase. Schema designed from an EER model. Core tables:
 
-Example workflow:
+| Table | Description |
+| :--- | :--- |
+| `teams` | NFL team information |
+| `players` | Player roster data |
+| `games` | NFL games by season and week |
+| `seasons` | NFL seasons |
+| `season_player_stats` | Player performance statistics |
+| `season_team_stats` | Aggregated team statistics |
+| `game_team_stats` | Team statistics for a single game |
+| `player_team_stats` | Player stats in a single game |
 
+Migrations live under [`database/migrations/`](database/migrations).
+
+---
+
+## Running locally
+
+### 1. Backend (Express on Railway)
+
+```bash
+cd backend
+npm install
+cp .env.example .env   # set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+npm run dev            # http://localhost:8080
 ```
-1. Pull season stats for teams
-2. Pull game stats
-3. Pull player season stats 
-4. Transform data using pandas
-5. Insert into Supabase PostgreSQL tables
+
+### 2. Frontend (Next.js on Vercel)
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local   # set NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+npm run dev                  # http://localhost:3000
 ```
 
-Libraries used:
+### 3. Data pipeline (ETL)
 
-* requests
-* pandas
-* supabase 
+```bash
+cd data_pipeline
+python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
+pip install requests pandas supabase
+python pull_team_season_data.py
+```
 
----
-
-## Features
-
-* RESTful API for NFL data
-* Cloud-hosted PostgreSQL database (Supabase)
-* Normalized relational schema
-* Real NFL data ingestion
-* Swagger API documentation
-* Designed for scalability
+See [`data_pipeline/`](data_pipeline) for the per-script entry points.
 
 ---
 
-## Future Improvements
+## Deployment
 
-* Add player game statistics
-* Injury report ingestion
-* Game prediction model
-* Caching layer (Redis)
-* Docker deployment
-* Authentication
+- **Frontend** — Vercel auto-detects Next.js. Set project root to `frontend/` and `NEXT_PUBLIC_API_BASE_URL` to the Railway URL.
+- **Backend** — Railway uses `backend/railway.json` (Nixpacks). Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `CORS_ORIGIN` (your Vercel URL).
+- **Database** — Apply files in `database/migrations/` to Supabase in order.
 
 ---
-
-## Learning Objectives
-
-This project demonstrates skills in:
-
-* Backend development
-* API design
-* Database modeling
-* ETL pipelines
-* Working with third-party APIs
-* Cloud database management
-
----
-
-## How to Run the Project
-This project is still in development and is not yet ready to be executed.
 
 ## Author
 
-Enrique Gamboa
-
-Backend Development | Data Engineering | Database Design
+Enrique Gamboa — Backend Development | Data Engineering | Database Design
