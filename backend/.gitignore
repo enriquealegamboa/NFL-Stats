@@ -1,6 +1,20 @@
-node_modules/
-dist/
+# Maven build output
+target/
+
+# Compiled class files
+*.class
+
+# Logs
+*.log
+
+# Environment
 .env
 .env.local
-*.log
-*.tsbuildinfo
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
