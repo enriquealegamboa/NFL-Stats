@@ -1,0 +1,7 @@
+# Pin the JDK so Railway/Nixpacks builds with Java 21 (default is 17, which
+# cannot compile this project's Java 21 target). Keeps the deploy reproducible
+# without needing a NIXPACKS_JDK_VERSION variable set in the Railway dashboard.
+providers = ["java"]
+
+[variables]
+NIXPACKS_JDK_VERSION = "21"
