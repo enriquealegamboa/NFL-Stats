@@ -1,0 +1,32 @@
+name: Weekly NFL data pull
+
+# Runs on a timer during the season. The script auto-detects the current week
+# from ESPN and only pulls completed games, so it's safe to run year-round:
+# in the off-season it finds no active week and exits without doing anything.
+on:
+  schedule:
+    - cron: '0 12 * * 2'      # Tuesdays 12:00 UTC (after Monday Night Football)
+  workflow_dispatch:           # also lets you run it by hand from the Actions tab
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    # The player-stats pull makes many rate-limited ESPN calls, so give it room.
+    timeout-minutes: 120
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r data_pipeline/requirements.txt
+
+      - name: Pull this week's NFL data
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python data_pipeline/pull_weekly.py

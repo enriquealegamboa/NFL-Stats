@@ -1,138 +1,48 @@
 import requests
-import pandas as pd
 import os
 from supabase import create_client, Client
 import time
+from datetime import datetime, timezone
 from postgrest.exceptions import APIError
-import maskpass
+from pipeline_utils import add_record_chunk, ensure_season
 
 
-ATHLETES_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2025/athletes"
+SEASON_YEAR = None
+ATHLETES_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/{year}/athletes"
 PLAYER_SEASON_URL = "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes"
 SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
 EVENT_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events"
 BOXSCORE_URL = "https://cdn.espn.com/core/nfl/boxscore?xhr=1&"
-POST_SEASON_CHECK_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams"
-TEAM_SEASON_URL = "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/seasons/2025"
 
 _original_get = requests.get
 
-def paused_get(url, *args, **kwargs):
+
+class _FailedResponse:
+    status_code = 599
+
+    def json(self):
+        return {}
+
+
+def paused_get(url, *args, retries=3, **kwargs):
+    kwargs.setdefault("timeout", 30)
     time.sleep(1.1)
-    return _original_get(url, *args, **kwargs)
+    last = None
+    for attempt in range(retries):
+        try:
+            last = _original_get(url, *args, **kwargs)
+            if last.status_code == 200:
+                return last
+        except requests.RequestException as e:
+            print(f"Request error: {e}")
+            last = None
+        if attempt < retries - 1:
+            wait = 2 ** attempt   # back off: 1s, then 2s
+            print(f"Retry {attempt + 1}/{retries - 1} in {wait}s -> {url}")
+            time.sleep(wait)
+    return last if last is not None else _FailedResponse()
 
 requests.get = paused_get
-
-def get_all_season_team_stats():
-
-    team_df = pd.read_csv('teams_df.csv')
-    team_id = team_df["espn_team_id"]
-
-    season_team_stats = []
-
-    count = 1
-    for id in team_id:
-        url = f"{POST_SEASON_CHECK_URL}/{id}/schedule?season=2025&seasontype=3"
-        r = requests.get(url)
-
-        if r.status_code != 200:
-            print("Post Season Event Page Request Failed for " + str(id))
-            continue
-
-        data = r.json()
-        post = False
-        if len(data["events"]) != 0:
-            post = True
-        append_team_stats(season_team_stats, True, id)
-        if post:
-            append_team_stats(season_team_stats, False, id)
-        
-        print(f"{count} of {len(team_id)} teams complete")
-        count+=1
-    
-    return season_team_stats
-
-def get_value(array, position, name, default_missing_value=0):
-    if position < len(array) and array[position]["name"] == name:
-        return int(array[position]["value"]) if array[position]["value"] != None else default_missing_value
-    
-    print(f"wrong position: {name}")
-    for element in array:
-        if name == element["name"]:
-            return int(element["value"]) if element["value"] != None else default_missing_value
-    
-    print(f"value not found for {name} returning default value")
-    return default_missing_value
-
-def append_team_stats(season_team_stats, regular, id):
-    url = f"{TEAM_SEASON_URL}/types/3/teams/{id}/statistics"
-    if regular:
-        url = f"{TEAM_SEASON_URL}/types/2/teams/{id}/statistics"
-    r = requests.get(url)
-
-    if r.status_code != 200:
-        print("Regular Season Stats Page Failded " + str(id))
-        return
-
-    data = r.json()
-
-    categories = data["splits"]["categories"]
-
-    scoring = categories[9]["stats"]
-    miscellaneous = categories[10]["stats"]
-    passing = categories[1]["stats"]
-    rushing = categories[2]["stats"]
-    returning = categories[7]["stats"]
-    interception = categories[5]["stats"]
-    punting = categories[8]["stats"]
-    kicking = categories[6]["stats"]
-    general = categories[0]["stats"]
-    
-
-    season_team_stats.append({
-        "team_id" : id,
-        "season_id" : 2025,
-        "regular_season" : regular,
-        "total_points" : get_value(scoring, 9 , "totalPoints"),
-        "total_touchdowns" : get_value(scoring, 11, "totalTouchdowns"),
-        "first_downs_rushing" : get_value(miscellaneous, 4, "firstDownsRushing"),
-        "first_downs_passing" : get_value(miscellaneous, 1, "firstDownsPassing"),
-        "first_downs_penalty" : get_value(miscellaneous, 2, "firstDownsPenalty"),
-        "third_down_attempts" : get_value(miscellaneous, 14, "thirdDownAttempts"),
-        "third_down_conversions" : get_value(miscellaneous, 16, "thirdDownConvs"),
-        "fourth_down_attempts" : get_value(miscellaneous, 5, "fourthDownAttempts"),
-        "fourth_down_conversions" : get_value(miscellaneous, 7 , "fourthDownConvs"),
-        "pass_completions" : get_value(passing, 2, "completions"),
-        "pass_attempts" : get_value(passing, 12, "passingAttempts"),
-        "net_passing_yards" : get_value(passing, 8, "netPassingYards"),
-        "passing_touchdowns" : get_value(passing, 18, "passingTouchdowns"),
-        "interceptions_thrown" : get_value(passing, 5, "interceptions"),
-        "sacks" : get_value(passing, 24, "sacks"),
-        "sack_yards_lost" : get_value(passing, 25, "sackYardsLost"),
-        "rushing_attempts" : get_value(rushing, 6, "rushingAttempts"),
-        "rushing_yards" : get_value(rushing, 12, "rushingYards"),
-        "rushing_touchdowns" : get_value(rushing, 11, "rushingTouchdowns"),
-        "offensive_plays" : get_value(passing, 28, "totalOffensivePlays"),
-        "total_yards" : get_value(passing, 32, "totalYards"),
-        "kickoff_returns" : get_value(returning, 8, "kickReturns"),
-        "kickoff_return_yards" : get_value(returning, 10, "kickReturnYards"), 
-        "punt_returns" : get_value(returning, 23, "puntReturns"),
-        "punt_return_yards" : get_value(returning, 27, "puntReturnYards"),
-        "interception_returns" : get_value(interception, 0, "interceptions"),
-        "interception_return_yards" : get_value(interception, 2, "interceptionYards"),
-        "punts" : get_value(punting, 7, "punts"),
-        "punt_total_yards" : get_value(punting, 14, "puntYards"),
-        "field_goals_made" : get_value(kicking, 21, "fieldGoalsMade"),
-        "field_goals_attempted" : get_value(kicking, 9, "fieldGoalAttempts"),
-        "touchbacks" : get_value(kicking, 42, "touchbacks"),
-        "penalties_count" : get_value(general, 10, "totalPenalties"),
-        "penalty_yards" : get_value(general, 11, "totalPenaltyYards"),
-        "possession_time_seconds" : get_value(miscellaneous, 9, "possessionTimeSeconds"),
-        "fumbles" : get_value(general, 0, "fumbles"),
-        "fumbles_lost" : get_value(general, 1, "fumblesLost"),
-        "turnovers" : get_value(miscellaneous, 22, "turnOverDifferential")
-    })
-
 
 class PlayerPosition:
     def __init__(self):
@@ -149,7 +59,7 @@ def get_players_positions(players):
     count = 1
 
     for athlete in players:
-        ath_bio_url = f"{ATHLETES_URL}/{athlete["player_id"]}?lang=en&region=us"
+        ath_bio_url = f"{ATHLETES_URL.format(year=SEASON_YEAR)}/{athlete["player_id"]}?lang=en&region=us"
         r = requests.get(ath_bio_url)
         if r.status_code != 200:
             print(f"Player page request failed: {ath_bio_url}")
@@ -207,7 +117,7 @@ def check_if_in_season(player_id : int, player_stats : PlayerStats, regular : bo
     if regular:
         if player_id not in player_stats.players_added:
             player_stats.season_player_stats.append({
-                "season_id" : 2025,
+                "season_id" : SEASON_YEAR,
                 "player_id" : player_id,
                 "is_regular_season" : regular
             })
@@ -215,17 +125,21 @@ def check_if_in_season(player_id : int, player_stats : PlayerStats, regular : bo
     else:
         if player_id not in player_stats.players_added_post:
             player_stats.season_player_stats.append({
-                "season_id" : 2025,
+                "season_id" : SEASON_YEAR,
                 "player_id" : player_id,
                 "is_regular_season" : regular
             })
-            player_stats.players_added.add(player_id)
+            player_stats.players_added_post.add(player_id)
+
+def season_values(category):
+    latest = category["statistics"][-1]
+    return latest["season"]["year"], dict(zip(category["names"], latest["stats"]))
 
 def get_season_single_player_stats(player_stats, player_id, regular):
     if regular:
-        url = f"{PLAYER_SEASON_URL}/{player_id}/stats?seasontype=2&season=2025"
+        url = f"{PLAYER_SEASON_URL}/{player_id}/stats?seasontype=2&season={SEASON_YEAR}"
     else:
-        url = f"{PLAYER_SEASON_URL}/{player_id}/stats?seasontype=3&season=2025"
+        url = f"{PLAYER_SEASON_URL}/{player_id}/stats?seasontype=3&season={SEASON_YEAR}"
     r = requests.get(url)
 
     if r.status_code != 200:
@@ -241,80 +155,80 @@ def get_season_single_player_stats(player_stats, player_id, regular):
     for categorie in categories:
         match categorie["name"]:
             case "passing":
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.passing.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "cmp" : stat[len(stat)-1]["stats"][1],
-                        "att": stat[len(stat)-1]["stats"][2],
-                        "cmp_pct" : stat[len(stat)-1]["stats"][3],
-                        "yds" : stat[len(stat)-1]["stats"][4].replace(",",""),
-                        "avg" : stat[len(stat)-1]["stats"][5],
-                        "td" : stat[len(stat)-1]["stats"][6],
-                        "int_" : stat[len(stat)-1]["stats"][7],
-                        "lng" : stat[len(stat)-1]["stats"][8],
-                        "sack" : stat[len(stat)-1]["stats"][9],
-                        "rtg" : stat[len(stat)-1]["stats"][10],
-                        "qbr" : stat[len(stat)-1]["stats"][11]
+                        "gp" : vals["gamesPlayed"],
+                        "cmp" : vals["completions"],
+                        "att": vals["passingAttempts"],
+                        "cmp_pct" : vals["completionPct"],
+                        "yds" : vals["passingYards"].replace(",",""),
+                        "avg" : vals["yardsPerPassAttempt"],
+                        "td" : vals["passingTouchdowns"],
+                        "int_" : vals["interceptions"],
+                        "lng" : vals["longPassing"],
+                        "sack" : vals["sacks"],
+                        "rtg" : vals["QBRating"],
+                        "qbr" : vals["adjQBR"]
                     })
                 break
             case "rushing" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.rushing.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "car" : stat[len(stat)-1]["stats"][1],
-                        "yds": stat[len(stat)-1]["stats"][2].replace(",",""),
-                        "avg" : stat[len(stat)-1]["stats"][3],
-                        "td" : stat[len(stat)-1]["stats"][4],
-                        "lng" : stat[len(stat)-1]["stats"][5],
-                        "fd" : stat[len(stat)-1]["stats"][6],
-                        "fum" : stat[len(stat)-1]["stats"][7],
-                        "lst" : stat[len(stat)-1]["stats"][8]
+                        "gp" : vals["gamesPlayed"],
+                        "car" : vals["rushingAttempts"],
+                        "yds": vals["rushingYards"].replace(",",""),
+                        "avg" : vals["yardsPerRushAttempt"],
+                        "td" : vals["rushingTouchdowns"],
+                        "lng" : vals["longRushing"],
+                        "fd" : vals["rushingFirstDowns"],
+                        "fum" : vals["rushingFumbles"],
+                        "lst" : vals["rushingFumblesLost"]
                     })
                 break
             case "receiving" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.receiving.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "rec" : stat[len(stat)-1]["stats"][1],
-                        "tgts": stat[len(stat)-1]["stats"][2],
-                        "yds" : stat[len(stat)-1]["stats"][3].replace(",", ""),
-                        "avg" : stat[len(stat)-1]["stats"][4],
-                        "td" : stat[len(stat)-1]["stats"][5],
-                        "lng" : stat[len(stat)-1]["stats"][6],
-                        "fd" : stat[len(stat)-1]["stats"][7],
-                        "fum" : stat[len(stat)-1]["stats"][8],
-                        "lst" : stat[len(stat)-1]["stats"][9]
+                        "gp" : vals["gamesPlayed"],
+                        "rec" : vals["receptions"],
+                        "tgts": vals["receivingTargets"],
+                        "yds" : vals["receivingYards"].replace(",", ""),
+                        "avg" : vals["yardsPerReception"],
+                        "td" : vals["receivingTouchdowns"],
+                        "lng" : vals["longReception"],
+                        "fd" : vals["receivingFirstDowns"],
+                        "fum" : vals["receivingFumbles"],
+                        "lst" : vals["receivingFumblesLost"]
                     })
                 break
             case "kicking" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
-                    fgm_1_19 , fga_1_19 = stat[len(stat)-1]["stats"][3].split("-")
-                    fgm_20_29, fga_20_29 = stat[len(stat)-1]["stats"][4].split("-")
-                    fgm_30_39, fga_30_39 = stat[len(stat)-1]["stats"][5].split("-")
-                    fgm_40_49, fga_40_49 = stat[len(stat)-1]["stats"][6].split("-")
-                    fgm_50_plus, fga_50_plus = stat[len(stat)-1]["stats"][7].split("-")
+                    fgm_1_19 , fga_1_19 = vals["fieldGoalsMade1_19-fieldGoalAttempts1_19"].split("-")
+                    fgm_20_29, fga_20_29 = vals["fieldGoalsMade20_29-fieldGoalAttempts20_29"].split("-")
+                    fgm_30_39, fga_30_39 = vals["fieldGoalsMade30_39-fieldGoalAttempts30_39"].split("-")
+                    fgm_40_49, fga_40_49 = vals["fieldGoalsMade40_49-fieldGoalAttempts40_49"].split("-")
+                    fgm_50_plus, fga_50_plus = vals["fieldGoalsMade50-fieldGoalAttempts50"].split("-")
                     player_stats.kicking.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
+                        "gp" : vals["gamesPlayed"],
                         "fgm_1_19" : fgm_1_19,
                         "fga_1_19" : fga_1_19, 
                         "fgm_20_29" : fgm_20_29,
@@ -325,100 +239,100 @@ def get_season_single_player_stats(player_stats, player_id, regular):
                         "fga_40_49" : fga_40_49,
                         "fgm_50_plus" : fgm_50_plus,
                         "fga_50_plus" : fga_50_plus,
-                        "lng" : stat[len(stat)-1]["stats"][8],
-                        "xpm" : stat[len(stat)-1]["stats"][9],
-                        "xpa" : stat[len(stat)-1]["stats"][10],
-                        "pts" : stat[len(stat)-1]["stats"][11]
+                        "lng" : vals["longFieldGoalMade"],
+                        "xpm" : vals["extraPointsMade"],
+                        "xpa" : vals["extraPointAttempts"],
+                        "pts" : vals["totalKickingPoints"]
                     })
                 break
             case "punting" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.punting.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "punts" : stat[len(stat)-1]["stats"][1],
-                        "avg": stat[len(stat)-1]["stats"][2],
-                        "lng" : stat[len(stat)-1]["stats"][3],
-                        "yds" : stat[len(stat)-1]["stats"][4].replace(",",""),
-                        "tb" : stat[len(stat)-1]["stats"][5],
-                        "tb_pct" : stat[len(stat)-1]["stats"][6],
-                        "in20" : stat[len(stat)-1]["stats"][7],
-                        "in20_pct" : stat[len(stat)-1]["stats"][8],
-                        "att" : stat[len(stat)-1]["stats"][9],
-                        "att_yds" : stat[len(stat)-1]["stats"][10],
-                        "att_avg" : stat[len(stat)-1]["stats"][11],
-                        "net" : stat[len(stat)-1]["stats"][12]
+                        "gp" : vals["gamesPlayed"],
+                        "punts" : vals["punts"],
+                        "avg": vals["grossAvgPuntYards"],
+                        "lng" : vals["longPunt"],
+                        "yds" : vals["puntYards"].replace(",",""),
+                        "tb" : vals["touchbacks"],
+                        "tb_pct" : vals["touchbackPct"],
+                        "in20" : vals["puntsInside20"],
+                        "in20_pct" : vals["puntsInside20Pct"],
+                        "att" : vals["puntReturns"],
+                        "att_yds" : vals["puntReturnYards"],
+                        "att_avg" : vals["avgPuntReturnYards"],
+                        "net" : vals["netAvgPuntYards"]
                     })
                 break
             case "returning" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.returning.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "p_att" : stat[len(stat)-1]["stats"][1],
-                        "p_yds": stat[len(stat)-1]["stats"][2].replace(",",""),
-                        "p_td" : stat[len(stat)-1]["stats"][3],
-                        "p_fc" : stat[len(stat)-1]["stats"][4],
-                        "p_lng" : stat[len(stat)-1]["stats"][5],
-                        "k_att" : stat[len(stat)-1]["stats"][6],
-                        "k_yds" : stat[len(stat)-1]["stats"][7].replace(",", ""),
-                        "k_td" : stat[len(stat)-1]["stats"][8],
-                        "k_fc" : stat[len(stat)-1]["stats"][9],
-                        "k_lng" : stat[len(stat)-1]["stats"][10]
+                        "gp" : vals["gamesPlayed"],
+                        "p_att" : vals["puntReturns"],
+                        "p_yds": vals["puntReturnYards"].replace(",",""),
+                        "p_td" : vals["puntReturnTouchdowns"],
+                        "p_fc" : vals["puntReturnFairCatches"],
+                        "p_lng" : vals["longPuntReturn"],
+                        "k_att" : vals["kickReturns"],
+                        "k_yds" : vals["kickReturnYards"].replace(",", ""),
+                        "k_td" : vals["kickReturnTouchdowns"],
+                        "k_fc" : vals["kickReturnFairCatches"],
+                        "k_lng" : vals["longKickReturn"]
                     })
                 break
             case "defensive" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.defense.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "tot" : stat[len(stat)-1]["stats"][1],
-                        "solo": stat[len(stat)-1]["stats"][2],
-                        "ast" : stat[len(stat)-1]["stats"][3],
-                        "sack" : stat[len(stat)-1]["stats"][4],
-                        "ff" : stat[len(stat)-1]["stats"][5],
-                        "fr" : stat[len(stat)-1]["stats"][6],
-                        "yds" : int(stat[len(stat)-1]["stats"][7])+int(stat[len(stat)-1]["stats"][9]),
-                        "int_" : stat[len(stat)-1]["stats"][8],
-                        "avg" : stat[len(stat)-1]["stats"][10],
-                        "td" : stat[len(stat)-1]["stats"][11],
-                        "lng" : stat[len(stat)-1]["stats"][12],
-                        "pd" : stat[len(stat)-1]["stats"][13],
-                        "stf" : stat[len(stat)-1]["stats"][14],
-                        "stfyds" : stat[len(stat)-1]["stats"][15],
-                        "kb" : stat[len(stat)-1]["stats"][16]
+                        "gp" : vals["gamesPlayed"],
+                        "tot" : vals["totalTackles"],
+                        "solo": vals["soloTackles"],
+                        "ast" : vals["assistTackles"],
+                        "sack" : vals["sacks"],
+                        "ff" : vals["fumblesForced"],
+                        "fr" : vals["fumblesRecovered"],
+                        "yds" : int(vals["fumblesRecoveredYards"])+int(vals["interceptionYards"]),
+                        "int_" : vals["interceptions"],
+                        "avg" : vals["avgInterceptionYards"],
+                        "td" : vals["interceptionTouchdowns"],
+                        "lng" : vals["longInterception"],
+                        "pd" : vals["passesDefended"],
+                        "stf" : vals["stuffs"],
+                        "stfyds" : vals["stuffYards"],
+                        "kb" : vals["kicksBlocked"]
                     })
                 break
             case "scoring" : 
-                stat = categorie["statistics"]
-                if stat[len(stat)-1]["season"]["year"] == 2025:
+                year_val, vals = season_values(categorie)
+                if year_val == SEASON_YEAR:
                     check_if_in_season(player_id, player_stats, regular)
                     player_stats.scoring.append({
-                        "season_id" : 2025,
+                        "season_id" : SEASON_YEAR,
                         "player_id" : player_id,
                         "is_regular_season" : regular,
-                        "gp" : stat[len(stat)-1]["stats"][0],
-                        "pass" : stat[len(stat)-1]["stats"][1],
-                        "rush": stat[len(stat)-1]["stats"][2],
-                        "rec" : stat[len(stat)-1]["stats"][3],
-                        "ret" : stat[len(stat)-1]["stats"][4],
-                        "td" : stat[len(stat)-1]["stats"][5],
-                        "two_pt" : stat[len(stat)-1]["stats"][6],
-                        "pat" : stat[len(stat)-1]["stats"][7],
-                        "fg" : stat[len(stat)-1]["stats"][8],
-                        "pts" : stat[len(stat)-1]["stats"][9]
+                        "gp" : vals["gamesPlayed"],
+                        "pass" : vals["passingTouchdowns"],
+                        "rush": vals["rushingTouchdowns"],
+                        "rec" : vals["receivingTouchdowns"],
+                        "ret" : vals["returnTouchdowns"],
+                        "td" : vals["totalTouchdowns"],
+                        "two_pt" : vals["totalTwoPointConvs"],
+                        "pat" : vals["kickExtraPoints"],
+                        "fg" : vals["fieldGoals"],
+                        "pts" : vals["totalPoints"]
                     })
                 break
     return True        
@@ -426,13 +340,13 @@ def get_season_single_player_stats(player_stats, player_id, regular):
 def get_games(week : int):
     print(f"Extracting games for week {week}")
     games = []
-    #24 instead of curr for normal op 
     if week == 22:
+        print("Skipping the Pro Bowl")
         return games
     if week < 19:
-        url = f"{SCOREBOARD_URL}?week={week}&seasontype=2&year=2025"
+        url = f"{SCOREBOARD_URL}?week={week}&seasontype=2&year={SEASON_YEAR}"
     else:
-        url = f"{SCOREBOARD_URL}?week={week-18}&seasontype=3&year=2025"
+        url = f"{SCOREBOARD_URL}?week={week-18}&seasontype=3&year={SEASON_YEAR}"
     r = requests.get(url)
     if r.status_code != 200:
         print(f"Page Request failed week {url}")
@@ -440,6 +354,9 @@ def get_games(week : int):
     data = r.json()
     events = data["events"]
     for event in events:
+        # Only keep finished games -- never insert scheduled or in-progress ones.
+        if not event["status"]["type"]["completed"]:
+            continue
         game_id = event["id"]
         outside = not event["competitions"][0]["venue"]["indoor"]
         neutral = event["competitions"][0]["neutralSite"]
@@ -464,7 +381,7 @@ def get_games(week : int):
             "is_outside" : outside,
             "is_neutral" : neutral,
             "game_date" : game_date,
-            "season_id" : 2025,
+            "season_id" : SEASON_YEAR,
             "home_team_id" : home_id,
             "away_team_id" : away_id,
             "home_team_score" : home_score,
@@ -513,6 +430,16 @@ def check_if_in_roster(player_id, team_id, date, roster):
     else:
         roster[(player_id,team_id)] = [roster[(player_id,team_id)][0], date]        
 
+def stats_by_name(items):
+    result = {}
+    for item in items:
+        result.setdefault(item["name"], item)
+    return result
+
+def values_by_key(stat_group, athlete):
+    # Box-score player stats: a flat "stats" list aligned to the group's "keys".
+    return dict(zip(stat_group["keys"], athlete["stats"]))
+
 def get_game_stats(game):
     game_stats = GameStats()
     url = f"{BOXSCORE_URL}gameId={game["game_id"]}"
@@ -523,42 +450,42 @@ def get_game_stats(game):
     data = r.json()
 
     for team in data['gamepackageJSON']["boxscore"]["teams"]:
-        stats = team["statistics"]
-        third_down_conversion, third_down_attempts = stats[4]["displayValue"].split("-")
-        fourth_down_conversion, fourth_down_attempts = stats[5]["displayValue"].split("-")
-        pass_completions, pass_attempts = stats[11]["displayValue"].split("/")
-        sacks , sack_yards_lost = stats[14]["displayValue"].split("-")
-        red_zone_made, red_zone_attempts = stats[18]["displayValue"].split("-")
-        penalties, penalty_yards = stats[19]["displayValue"].split("-")
+        ts = stats_by_name(team["statistics"])
+        third_down_conversion, third_down_attempts = ts["thirdDownEff"]["displayValue"].split("-")
+        fourth_down_conversion, fourth_down_attempts = ts["fourthDownEff"]["displayValue"].split("-")
+        pass_completions, pass_attempts = ts["completionAttempts"]["displayValue"].split("/")
+        sacks , sack_yards_lost = ts["sacksYardsLost"]["displayValue"].split("-")
+        red_zone_made, red_zone_attempts = ts["redZoneAttempts"]["displayValue"].split("-")
+        penalties, penalty_yards = ts["totalPenaltiesYards"]["displayValue"].split("-")
         game_stats.teams.append({
             "game_id" : game["game_id"],
             "team_id" : team["team"]["id"],
-            "first_downs_passing" : stats[1]["value"],
-            "first_downs_rushing" : stats[2]["value"],
-            "first_downs_penalty" : stats[3]["value"],
+            "first_downs_passing" : ts["firstDownsPassing"]["value"],
+            "first_downs_rushing" : ts["firstDownsRushing"]["value"],
+            "first_downs_penalty" : ts["firstDownsPenalty"]["value"],
             "third_down_conversions" : third_down_conversion,
             "third_down_attempts" : third_down_attempts,
             "fourth_down_conversions" : fourth_down_conversion,
             "fourth_down_attempts" : fourth_down_attempts,
-            "total_plays" : stats[6]["value"],
-            "total_yards" : stats[7]["displayValue"],
-            "total_drives" : stats[9]["value"],
-            "passing_yards" : stats[10]["value"],
+            "total_plays" : ts["totalOffensivePlays"]["value"],
+            "total_yards" : ts["totalYards"]["displayValue"],
+            "total_drives" : ts["totalDrives"]["value"],
+            "passing_yards" : ts["netPassingYards"]["value"],
             "pass_completions" : pass_completions,
             "pass_attempts" : pass_attempts,
-            "interceptions_thrown" : stats[13]["value"],
+            "interceptions_thrown" : ts["interceptions"]["value"],
             "sacks" : sacks,
             "sack_yards_lost" : sack_yards_lost,
-            "rushing_yards" : stats[15]["value"],
-            "rushing_attempts" : stats[16]["value"],
+            "rushing_yards" : ts["rushingYards"]["value"],
+            "rushing_attempts" : ts["rushingAttempts"]["value"],
             "red_zone_made" : red_zone_made,
             "red_zone_attempts" : red_zone_attempts,
             "penalties_count" : penalties,
             "penalty_yards" : penalty_yards,
-            "turnovers" : stats[20]["displayValue"],
-            "fumbles_lost" :stats[21]["value"],
-            "defensive_special_teams_tds" : stats[22]["value"],
-            "possession_time_seconds" : stats[23]["value"]
+            "turnovers" : ts["turnovers"]["displayValue"],
+            "fumbles_lost" : ts["fumblesLost"]["value"],
+            "defensive_special_teams_tds" : ts["defensiveTouchdowns"]["value"],
+            "possession_time_seconds" : ts["possessionTime"]["value"]
         })
     
     player_returners = []
@@ -569,111 +496,106 @@ def get_game_stats(game):
             match stat["name"]:
                 case "passing":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
-                        completions, attempts = player_stats[0].split("/")
-                        sacks , sack_yards = player_stats[5].split("-")
+                        vals = values_by_key(stat, player)
+                        completions, attempts = vals["completions/passingAttempts"].split("/")
+                        sacks , sack_yards = vals["sacks-sackYardsLost"].split("-")
                         game_stats.passing.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            #0 completion / attempts
                             "completions" : completions,
                             "attempts" : attempts,
-                            "yards" : player_stats[1],
-                            #2 yards per attempt
-                            "touchdowns" : player_stats[3],
-                            "interceptions" : player_stats[4],
-                            #5 sacks-sack yards lost
+                            "yards" : vals["passingYards"],
+                            "touchdowns" : vals["passingTouchdowns"],
+                            "interceptions" : vals["interceptions"],
                             "sacks" : sacks,
                             "sack_yards" : sack_yards,
-                            "qbr" : player_stats[6],
-                            "rtg" : player_stats[7]
+                            "qbr" : vals["adjQBR"],
+                            "rtg" : vals["QBRating"]
                         })
 
                 case "rushing":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.rushing.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "carries" : player_stats[0],
-                            "yards" : player_stats[1],
-                            #2 yards per attempt
-                            "touchdowns" : player_stats[3],
-                            "long_run" : player_stats[4]
+                            "carries" : vals["rushingAttempts"],
+                            "yards" : vals["rushingYards"],
+                            "touchdowns" : vals["rushingTouchdowns"],
+                            "long_run" : vals["longRushing"]
                         })
                 
                 case "receiving":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.receiving.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "receptions" : player_stats[0],
-                            "yards" : player_stats[1],
-                            #2 yards per reception
-                            "touchdowns" : player_stats[3],
-                            "long_reception" : player_stats[4],
-                            "targets" : player_stats[5]
+                            "receptions" : vals["receptions"],
+                            "yards" : vals["receivingYards"],
+                            "touchdowns" : vals["receivingTouchdowns"],
+                            "long_reception" : vals["longReception"],
+                            "targets" : vals["receivingTargets"]
                         })
 
                 case "fumbles":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.fumble.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "fumbles" : player_stats[0],
-                            "fumbles_lost" : player_stats[1],
-                            "fumbles_recovered" : player_stats[2]
+                            "fumbles" : vals["fumbles"],
+                            "fumbles_lost" : vals["fumblesLost"],
+                            "fumbles_recovered" : vals["fumblesRecovered"]
                         })
                 
                 case "defensive":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.defense.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "total_tackles" : player_stats[0],
-                            "solo_tackles" : player_stats[1],
-                            "sacks" : player_stats[2],
-                            "tackles_for_loss" : player_stats[3],
-                            "passes_defended" : player_stats[4],
-                            "qb_hits" : player_stats[5],
-                            "touchdowns" : player_stats[6]
+                            "total_tackles" : vals["totalTackles"],
+                            "solo_tackles" : vals["soloTackles"],
+                            "sacks" : vals["sacks"],
+                            "tackles_for_loss" : vals["tacklesForLoss"],
+                            "passes_defended" : vals["passesDefended"],
+                            "qb_hits" : vals["QBHits"],
+                            "touchdowns" : vals["defensiveTouchdowns"]
                         })
 
                 case "interceptions":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.interception.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "interceptions" : player_stats[0],
-                            "yards" : player_stats[1],
-                            "touchdowns" : player_stats[2]
+                            "interceptions" : vals["interceptions"],
+                            "yards" : vals["interceptionYards"],
+                            "touchdowns" : vals["interceptionTouchdowns"]
                         })
 
                 case "kickReturns":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
+                        vals = values_by_key(stat, player)
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
@@ -689,20 +611,20 @@ def get_game_stats(game):
                                 "punt_return_yards" : 0,
                                 "punt_return_td" : 0,
                                 "punt_long" : 0,
-                                "kick_returns" : player_stats[0],
-                                "kick_return_yards" : player_stats[1],
-                                "kick_return_td" : player_stats[4],
-                                "kick_long" : player_stats[3] 
+                                "kick_returns" : vals["kickReturns"],
+                                "kick_return_yards" : vals["kickReturnYards"],
+                                "kick_return_td" : vals["kickReturnTouchdowns"],
+                                "kick_long" : vals["longKickReturn"]
                             })
                         else:
-                            curr_player_returner["kick_returns"] = player_stats[0]
-                            curr_player_returner["kick_return_yards"] = player_stats[1]
-                            curr_player_returner["kick_return_td"] = player_stats[4]
-                            curr_player_returner["kick_long"] = player_stats[3] 
+                            curr_player_returner["kick_returns"] = vals["kickReturns"]
+                            curr_player_returner["kick_return_yards"] = vals["kickReturnYards"]
+                            curr_player_returner["kick_return_td"] = vals["kickReturnTouchdowns"]
+                            curr_player_returner["kick_long"] = vals["longKickReturn"]
                         
                 case "puntReturns":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
+                        vals = values_by_key(stat, player)
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
@@ -714,56 +636,53 @@ def get_game_stats(game):
                             player_returners.append({
                                 "player_id" : player["athlete"]["id"],
                                 "game_id" : game["game_id"],
-                                "punt_returns" : player_stats[0],
-                                "punt_return_yards" : player_stats[1],
-                                "punt_return_td" : player_stats[4],
-                                "punt_long" : player_stats[3],
+                                "punt_returns" : vals["puntReturns"],
+                                "punt_return_yards" : vals["puntReturnYards"],
+                                "punt_return_td" : vals["puntReturnTouchdowns"],
+                                "punt_long" : vals["longPuntReturn"],
                                 "kick_returns" : 0,
                                 "kick_return_yards" : 0,
                                 "kick_return_td" : 0,
-                                "kick_long" : 0 
+                                "kick_long" : 0
                             })
                         else:
-                            curr_player_returner["kick_returns"] = player_stats[0]
-                            curr_player_returner["kick_return_yards"] = player_stats[1]
-                            curr_player_returner["kick_return_td"] = player_stats[4]
-                            curr_player_returner["kick_long"] = player_stats[3] 
+                            curr_player_returner["punt_returns"] = vals["puntReturns"]
+                            curr_player_returner["punt_return_yards"] = vals["puntReturnYards"]
+                            curr_player_returner["punt_return_td"] = vals["puntReturnTouchdowns"]
+                            curr_player_returner["punt_long"] = vals["longPuntReturn"]
 
                 case "kicking":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
-                        made , attempted = player_stats[0].split("/")
-                        extra_made, extra_attempted = player_stats[3].split("/")
+                        vals = values_by_key(stat, player)
+                        made , attempted = vals["fieldGoalsMade/fieldGoalAttempts"].split("/")
+                        extra_made, extra_attempted = vals["extraPointsMade/extraPointAttempts"].split("/")
                         game_stats.kicking.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            #1 field goal made / attempted
                             "field_goals_made" : made,
                             "field_goals_attempted" : attempted,
-                            #2 percent
-                            "longest_fg" : player_stats[2],
+                            "longest_fg" : vals["longFieldGoalMade"],
                             "extra_points" : extra_made,
                             "extra_points_attempted" : extra_attempted,
                         })
                 
                 case "punting":
                     for player in stat["athletes"]:
-                        player_stats = player["stats"]
                         check_if_in_league(player["athlete"]["id"], player["athlete"]["displayName"], game_stats)
                         check_if_in_roster(player["athlete"]["id"], team_id, game["game_date"], game_stats.roster)
                         check_if_in_game(player["athlete"]["id"], game["game_id"], game_stats)
+                        vals = values_by_key(stat, player)
                         game_stats.punting.append({
                             "player_id" : player["athlete"]["id"],
                             "game_id" : game["game_id"],
-                            "punts" : player_stats[0],
-                            "yards" : player_stats[1],
-                            #2 Yds per punt
-                            "touchbacks" : player_stats[3],
-                            "inside_20" : player_stats[4],
-                            "long_punt" : player_stats[5]                                
+                            "punts" : vals["punts"],
+                            "yards" : vals["puntYards"],
+                            "touchbacks" : vals["touchbacks"],
+                            "inside_20" : vals["puntsInside20"],
+                            "long_punt" : vals["longPunt"]                                
                         })
 
     for returner in player_returners:
@@ -782,28 +701,9 @@ def get_roster(roster_dictionary):
         })
     return roster
 
-def add_record_chunk(supabase, table_name, records, conflict_column = None):
-    print(f"\n{table_name}")
-    if len(records) < 1:
-        print("No records")
-        return
-    try:
-        response = supabase.table(table_name).upsert(
-            records,
-            on_conflict=conflict_column
-        ).execute()
-        return response.data
-    except APIError as e:
-        print(f"Database error: {e.message}")
-        print(f"Table: {table_name}")
-        print(f"HTTP Status: {e.code}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-
-def add_game_records(supabase):
-    for week in range(1,3):
-        #set to 24 when not in test
-        games  = get_games(week)
+def add_game_records(supabase, weeks):
+    for week in weeks:
+        games = get_games(week)
         for game in games:
             print(f"\nWeek : {week}\nGame : {game["game_id"]}")
             print(f"{game["home_team_id"]} vs {game["away_team_id"]}")
@@ -837,8 +737,7 @@ def add_season_player_records(supabase):
     start = 0
     end = batch_size-1
     while True:
-        try:
-            
+        try:            
             response = supabase.table("player").select("player_id").range(start,end).execute()
             data = response.data
         except APIError as e:
@@ -870,35 +769,53 @@ def add_season_player_records(supabase):
         end += batch_size
        
 
-def main():
+def get_current_week():
+    r = requests.get(SCOREBOARD_URL)
+    if r.status_code != 200:
+        print("Could not fetch the scoreboard from ESPN")
+        return None, None
+    data = r.json()
+    year = data["season"]["year"]
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    calendar = data["leagues"][0]["calendar"]
 
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_SECRET_KEY")
+    current_week = None
+    latest_start = None
+    for phase in calendar:
+        phase_type = str(phase.get("value"))   # "1" pre, "2" regular, "3" post, "4" off
+        if phase_type not in ("2", "3"):
+            continue                            # only regular season + playoffs
+        for wk in phase.get("entries", []):
+            start = wk["startDate"][:10]        # "2026-09-09T07:00Z" -> "2026-09-09"
+            if start <= today and (latest_start is None or start > latest_start):
+                latest_start = start
+                # internal week: 1-18 regular, +18 for playoffs (matches get_games)
+                current_week = int(wk["value"]) + (18 if phase_type == "3" else 0)
+    return year, current_week
+
+def main():
+    global SEASON_YEAR
+    url: str = os.environ["SUPABASE_URL"]
+    key: str = os.environ["SUPABASE_SECRET_KEY"]
     supabase: Client = create_client(url, key)
 
-    admin_email = input("Email: ")
-    admin_password =  maskpass.askpass(mask="*")
-    try:
-        admin_auth = supabase.auth.sign_in_with_password({
-            "email": admin_email,
-            "password": admin_password
-        })
-    except Exception as e:
-        print("Failed to sign in")
-        print(f"An error occurred: {e}")
+    year, week = get_current_week()
+    if week is None:
+        print("No active NFL week right now (off-season or pre-season) -- nothing to pull.")
+        return
+    SEASON_YEAR = year
 
-    supabase.auth.set_session(admin_auth.session.access_token, admin_auth.session.refresh_token)
+    # Make sure the season row exists before inserting games/stats that reference it.
+    ensure_season(supabase, SEASON_YEAR)
 
-    print("Pulling all NFL data from 2025 season...")
+    print(f"Pulling NFL data for {SEASON_YEAR} week {week}...")
 
-    print("Team season stats")
-    season_team_stats = get_all_season_team_stats()
-    add_record_chunk(supabase, "season_team_stats", season_team_stats)
+    # Game-level data for this week's games (teams, players, rosters, box scores).
+    add_game_records(supabase, [week])
 
-    add_game_records(supabase)
-
+    # Refresh current-season player aggregate stats (they change every week).
     add_season_player_records(supabase)
 
-    print(f"Completed import")
-    
+    print("Completed import")
+
 main()

@@ -17,8 +17,8 @@ def add_entries_to_team_table(supabase, team_df):
 
 def main():
     team_df = pd.read_csv('teams_df.csv')
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
+    url: str = os.environ["SUPABASE_URL"]
+    key: str = os.environ["SUPABASE_SECRET_KEY"]
     supabase: Client = create_client(url, key)
     add_entries_to_team_table(supabase, team_df)
 

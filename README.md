@@ -37,14 +37,26 @@ Postgres on Supabase. Schema designed from an EER model. Core tables:
 
 | Table | Description |
 | :--- | :--- |
-| `teams` | NFL team information |
-| `players` | Player roster data |
-| `games` | NFL games by season and week |
-| `seasons` | NFL seasons |
-| `season_player_stats` | Player performance statistics |
-| `season_team_stats` | Aggregated team statistics |
+| `team` | NFL team information |
+| `player` | Player roster data |
+| `game` | NFL games by season and week |
+| `season` | NFL seasons |
+| `season_team_stats` | Aggregated team statistics for a season |
+| `season_player_stats` | Player season totals (detail split by category across `season_player_*` tables) |
 | `game_team_stats` | Team statistics for a single game |
-| `player_team_stats` | Player stats in a single game |
+| `game_player_stats` | Player appearances in a game (detail split by category across `game_player_*` tables) |
+
+Lookup/support tables: `conference`, `division`, `position`, `player_position`, `roster`.
+
+### Stat detail tables (downstream of the `*_player_stats` parents)
+
+Each parent row fans out into per-category detail tables (foreign-keyed back to the parent):
+
+**Season player stats** → `season_player_stats`
+`season_player_passing_stats`, `season_player_rushing_stats`, `season_player_receiving_stats`, `season_player_defense_stats`, `season_player_scoring_stats`, `season_player_kicking_stats`, `season_player_punting_stats`, `season_player_return_stats`
+
+**Game player stats** → `game_player_stats`
+`game_player_passing_stats`, `game_player_rushing_stats`, `game_player_receiving_stats`, `game_player_defense_stats`, `game_player_interception_stats`, `game_player_fumble_stats`, `game_player_kicking_stats`, `game_player_punting_stats`, `game_player_return_stats`
 
 Migrations live under [`database/migrations/`](database/migrations).
 
@@ -76,14 +88,38 @@ npm run dev                  # http://localhost:3000
 
 ### 3. Data pipeline (ETL)
 
+Python scripts that pull from the ESPN API and upsert into Supabase. Install
+dependencies and set your Supabase credentials as environment variables:
+
 ```bash
 cd data_pipeline
 python -m venv .venv && source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install requests pandas supabase
-python pull_team_season_data.py
+pip install -r requirements.txt
+
+export SUPABASE_URL="https://<project>.supabase.co"
+export SUPABASE_SECRET_KEY="<service_role / secret key>"   # bypasses RLS for writes
 ```
 
-See [`data_pipeline/`](data_pipeline) for the per-script entry points.
+Entry-point scripts (run from the `data_pipeline/` folder):
+
+| Script | What it does | When to run |
+| :--- | :--- | :--- |
+| `team_info.py` | Loads the 32 teams from `teams_df.csv` | Once, at setup |
+| `pull_team_season_data.py` | Backfills team-season stats for past years (2011–) | On demand |
+| `pull_weekly.py` | Auto-detects the current NFL week and pulls that week's games, box scores, rosters, and player season stats | Automated weekly (below) |
+
+`pipeline_utils.py` holds shared helpers and isn't run directly.
+
+**Order on a fresh database:** apply `database/migrations/` first, then run
+`team_info.py`, then the pulls.
+
+#### Automated weekly pull
+
+`pull_weekly.py` runs on a schedule via GitHub Actions
+([`.github/workflows/weekly-pull.yml`](.github/workflows/weekly-pull.yml)) —
+Tuesdays 12:00 UTC, plus a manual "Run workflow" button. It only pulls completed
+games and no-ops in the off-season, so it's safe to run year-round. Add the
+`SUPABASE_URL` and `SUPABASE_SECRET_KEY` repository secrets so it can connect.
 
 ---
 
