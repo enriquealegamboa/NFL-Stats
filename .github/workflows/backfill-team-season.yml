@@ -1,0 +1,30 @@
+name: Backfill team-season stats
+
+# On-demand historical backfill of team-season stats (2011 through 2025).
+# Run it by hand from the Actions tab. Upserts make it safe to re-run.
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # It makes ~1k rate-limited ESPN calls (32 teams x 15 seasons), so allow time.
+    timeout-minutes: 60
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r data_pipeline/requirements.txt
+
+      - name: Backfill historical team-season stats
+        working-directory: data_pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python pull_team_season_data.py
