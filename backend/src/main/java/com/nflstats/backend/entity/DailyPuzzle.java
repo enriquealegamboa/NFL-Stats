@@ -17,7 +17,7 @@ public class DailyPuzzle {
 
     @Column(name = "season_id") private Integer seasonId;
 
-    @Column(name = "reagular_season") private Boolean regularSeason;
+    @Column(name = "regular_season") private Boolean regularSeason;
 
     protected DailyPuzzle(){}
 
