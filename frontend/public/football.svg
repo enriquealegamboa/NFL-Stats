@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Football">
+  <ellipse cx="60" cy="60" rx="46" ry="28" fill="#8b4a2b" transform="rotate(-45 60 60)" />
+  <ellipse cx="60" cy="60" rx="46" ry="28" fill="none" stroke="#5c2f1b" stroke-width="3" transform="rotate(-45 60 60)" />
+  <g stroke="#ffffff" stroke-width="4" stroke-linecap="round">
+    <line x1="42" y1="78" x2="78" y2="42" />
+    <line x1="52" y1="60" x2="60" y2="52" />
+    <line x1="58" y1="66" x2="66" y2="58" />
+  </g>
+</svg>

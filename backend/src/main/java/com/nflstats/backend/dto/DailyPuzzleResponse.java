@@ -5,7 +5,6 @@ import java.util.List;
 public record DailyPuzzleResponse(
     String puzzleId,
     String date,
-    int season,
     int maxGuesses,
     List<String> statCategories
 ){}

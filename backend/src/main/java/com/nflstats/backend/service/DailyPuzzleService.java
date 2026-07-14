@@ -36,15 +36,14 @@ public class DailyPuzzleService {
     }
 
     public DailyPuzzleResponse getForDate(LocalDate date){
-        DailyPuzzle puzzle = repo.findByPuzzleDate(date)
-            .orElseThrow(()-> new NotFoundException("No puzzle found for " + date));
-        
+        if (!repo.existsById(date)) {
+            throw new NotFoundException("No puzzle found for " + date);
+        }
         String id = date.toString();
 
         return new DailyPuzzleResponse(
                 id,                           
-                id,                            
-                puzzle.getSeasonId(),          
+                id,                                    
                 maxGuesses,
                 statCategories
         );
